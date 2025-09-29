@@ -27,15 +27,12 @@ class GitHubCrawler(BaseCrawler):
 
     @classmethod
     def _make_full_url(cls, path: str) -> str:
-        """Join relative GitHub paths with BASE_URL"""
         return urljoin(cls.BASE_URL, path)
 
     async def _build_url(self) -> str:
-        """Return the base search URL (query params handled separately)."""
         return urljoin(self.BASE_URL, "search")
 
     def _build_params(self) -> Dict[str, str]:
-        """Build search query parameters."""
         return {
             "q": " ".join(self.keywords),
             "type": self.search_type.value,
