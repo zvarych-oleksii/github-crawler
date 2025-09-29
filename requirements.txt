@@ -1,0 +1,4 @@
+pytest
+python-dotenv
+beautifulsoup4
+aiohttp
