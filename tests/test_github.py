@@ -28,11 +28,16 @@ def test_parse_results():
     </div>
     """
     soup = BeautifulSoup(html, "html.parser")
-    results = GitHubCrawler._parse_results(soup)
+
+    crawler = GitHubCrawler(keywords=["test"])
+
+    results = crawler._parse_results(soup)
+
     assert results == [
-        {"url": GitHubCrawler._make_full_url("/owner1/repo1")},
-        {"url": GitHubCrawler._make_full_url("/owner2/repo2")},
+        {"url": crawler._make_full_url("/owner1/repo1")},
+        {"url": crawler._make_full_url("/owner2/repo2")},
     ]
+
 
 
 def test_extract_owner():
