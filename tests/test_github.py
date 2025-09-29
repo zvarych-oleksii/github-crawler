@@ -30,14 +30,12 @@ def test_parse_results():
     soup = BeautifulSoup(html, "html.parser")
 
     crawler = GitHubCrawler(keywords=["test"])
-
     results = crawler._parse_results(soup)
 
     assert results == [
         {"url": crawler._make_full_url("/owner1/repo1")},
         {"url": crawler._make_full_url("/owner2/repo2")},
     ]
-
 
 
 def test_extract_owner():
@@ -114,10 +112,10 @@ async def test_fetch_html_success_and_failure(monkeypatch):
 async def test_fetch_results_no_html(monkeypatch):
     crawler = GitHubCrawler(["test"])
 
-    async def mock_fetch_html(*args, **kwargs):
+    async def mock_make_request(*args, **kwargs):
         return None
 
-    monkeypatch.setattr(crawler, "_fetch_html", mock_fetch_html)
+    monkeypatch.setattr(crawler, "_make_request", mock_make_request)
     results = await crawler.fetch_results()
     assert results == []
 
@@ -132,10 +130,10 @@ async def test_fetch_results_with_repos(monkeypatch):
     </div>
     """
 
-    async def mock_fetch_html(session, url, proxy, params=None):
+    async def mock_make_request(*args, **kwargs):
         return html
 
-    monkeypatch.setattr(crawler, "_fetch_html", mock_fetch_html)
+    monkeypatch.setattr(crawler, "_make_request", mock_make_request)
 
     results = await crawler.fetch_results()
     assert results == [{"url": GitHubCrawler._make_full_url("/owner/repo")}]
@@ -151,14 +149,14 @@ async def test_fetch_results_with_extra_info(monkeypatch):
     </div>
     """
 
-    async def mock_fetch_html(session, url, proxy, params=None):
+    async def mock_make_request(*args, **kwargs):
         return html
 
     async def mock_enrich_repo(session, item, proxy):
         item["extra"] = {"owner": "owner", "language_stats": {"Python": 99.0}}
         return item
 
-    monkeypatch.setattr(crawler, "_fetch_html", mock_fetch_html)
+    monkeypatch.setattr(crawler, "_make_request", mock_make_request)
     monkeypatch.setattr(crawler, "_enrich_repo", mock_enrich_repo)
 
     results = await crawler.fetch_results(extra_info=True)
