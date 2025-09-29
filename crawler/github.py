@@ -1,7 +1,7 @@
 import asyncio
 import random
 from typing import List, Dict, Optional, Any
-from urllib.parse import urlparse, urlencode, urljoin
+from urllib.parse import urlparse, urljoin
 
 import aiohttp
 from aiohttp.client_exceptions import ClientError, ClientResponseError
@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 
 from .base import BaseCrawler
 from config import REQUEST_TIMEOUT, logger
-from .search_types import SearchType
+from .enums.search_types import SearchType
 
 
 class GitHubCrawler(BaseCrawler):
@@ -31,11 +31,15 @@ class GitHubCrawler(BaseCrawler):
         return urljoin(cls.BASE_URL, path)
 
     async def _build_url(self) -> str:
-        query = {
+        """Return the base search URL (query params handled separately)."""
+        return urljoin(self.BASE_URL, "search")
+
+    def _build_params(self) -> Dict[str, str]:
+        """Build search query parameters."""
+        return {
             "q": " ".join(self.keywords),
-            "type": self.search_type.value
+            "type": self.search_type.value,
         }
-        return urljoin(self.BASE_URL, "search?" + urlencode(query))
 
     @staticmethod
     def _parse_results(soup: BeautifulSoup) -> List[Dict[str, str]]:
@@ -49,7 +53,11 @@ class GitHubCrawler(BaseCrawler):
         return random.choice(self.proxies) if self.proxies else None
 
     async def _fetch_html(
-        self, session: aiohttp.ClientSession, url: str, proxy: Optional[str] = None
+        self,
+        session: aiohttp.ClientSession,
+        url: str,
+        proxy: Optional[str] = None,
+        params: Optional[Dict[str, str]] = None,
     ) -> Optional[str]:
         try:
             headers = {
@@ -67,22 +75,24 @@ class GitHubCrawler(BaseCrawler):
             kwargs = {
                 "timeout": REQUEST_TIMEOUT,
                 "headers": headers,
+                "params": params,
             }
+
             if proxy:
                 if "://" not in proxy:
                     proxy = f"http://{proxy}"
                 kwargs["proxy"] = proxy
-                logger.info(f"Fetching {url} via proxy {proxy}")
+                logger.info("Fetching %s via proxy %s", url, proxy)
             else:
-                logger.info(f"Fetching {url} without proxy")
+                logger.info("Fetching %s without proxy", url)
 
             async with session.get(url, **kwargs) as resp:
                 resp.raise_for_status()
-                logger.info(f"Response {resp.status} from {url}")
+                logger.info("Response %s from %s", resp.status, url)
                 return await resp.text()
 
         except (asyncio.TimeoutError, ClientError, ClientResponseError) as e:
-            logger.warning(f"Failed to fetch {url}: {e}")
+            logger.warning("Failed to fetch %s: %s", url, e)
             return None
 
     @staticmethod
@@ -93,7 +103,7 @@ class GitHubCrawler(BaseCrawler):
     @staticmethod
     def _parse_languages(html: str) -> Dict[str, float]:
         soup = BeautifulSoup(html, "html.parser")
-        stats: Dict[str, float] = {}
+        stats = {}
         lang_items = soup.select("h2:-soup-contains('Languages') ~ ul li")
         if not lang_items:
             lang_items = soup.select("ul.list-style-none li")
@@ -119,9 +129,11 @@ class GitHubCrawler(BaseCrawler):
 
     async def fetch_results(self, extra_info: bool = False) -> List[Dict[str, Any]]:
         url = await self._build_url()
+        params = self._build_params()
         proxy = await self._get_proxy()
+
         async with aiohttp.ClientSession() as session:
-            html = await self._fetch_html(session, url, proxy)
+            html = await self._fetch_html(session, url, proxy, params=params)
             if not html:
                 return []
             soup = BeautifulSoup(html, "html.parser")
@@ -135,7 +147,10 @@ class GitHubCrawler(BaseCrawler):
             return results
 
     async def _enrich_repo(
-        self, session: aiohttp.ClientSession, item: Dict[str, str | Dict[str, Any]], proxy: Optional[str]
+        self,
+        session: aiohttp.ClientSession,
+        item: Dict[str, str | Dict[str, Any]],
+        proxy: Optional[str],
     ) -> Dict[str, Any]:
         try:
             owner = self._extract_owner(item["url"])
@@ -143,5 +158,5 @@ class GitHubCrawler(BaseCrawler):
             item["extra"] = {"owner": owner, "language_stats": language_stats}
             return item
         except Exception as e:
-            logger.error(f"Failed to enrich {item['url']}: {e}")
+            logger.error("Failed to enrich %s: %s", item["url"], e)
             return item

@@ -2,24 +2,20 @@ import pytest
 from bs4 import BeautifulSoup
 import aiohttp
 from aiohttp.client_exceptions import ClientError
-from urllib.parse import urlparse, parse_qs
 
 from crawler.github import GitHubCrawler
-from crawler.search_types import SearchType
+from crawler.enums.search_types import SearchType
 
 
 @pytest.mark.asyncio
-async def test_build_url():
+async def test_build_url_and_params():
     crawler = GitHubCrawler(["python", "asyncio"], search_type=SearchType.REPOSITORIES)
     url = await crawler._build_url()
+    params = crawler._build_params()
 
-    parsed = urlparse(url)
-    query = parse_qs(parsed.query)
-
-    assert parsed.netloc == "github.com"
-    assert parsed.path == "/search"
-    assert query["q"][0] == "python asyncio"
-    assert query["type"][0] == "Repositories"
+    assert url == "https://github.com/search"
+    assert params["q"] == "python asyncio"
+    assert params["type"] == "Repositories"
 
 
 def test_parse_results():
@@ -131,7 +127,7 @@ async def test_fetch_results_with_repos(monkeypatch):
     </div>
     """
 
-    async def mock_fetch_html(session, url, proxy):
+    async def mock_fetch_html(session, url, proxy, params=None):
         return html
 
     monkeypatch.setattr(crawler, "_fetch_html", mock_fetch_html)
@@ -150,7 +146,7 @@ async def test_fetch_results_with_extra_info(monkeypatch):
     </div>
     """
 
-    async def mock_fetch_html(session, url, proxy):
+    async def mock_fetch_html(session, url, proxy, params=None):
         return html
 
     async def mock_enrich_repo(session, item, proxy):

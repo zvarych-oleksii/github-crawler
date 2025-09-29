@@ -2,7 +2,7 @@ import json
 import asyncio
 from pathlib import Path
 from crawler.github import GitHubCrawler
-from crawler.search_types import SearchType
+from crawler.enums.search_types import SearchType
 
 
 def main():
