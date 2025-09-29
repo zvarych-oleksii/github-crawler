@@ -2,15 +2,24 @@ import pytest
 from bs4 import BeautifulSoup
 import aiohttp
 from aiohttp.client_exceptions import ClientError
-from crawler.github import GitHubCrawler, SearchType
+from urllib.parse import urlparse, parse_qs
+
+from crawler.github import GitHubCrawler
+from crawler.search_types import SearchType
 
 
 @pytest.mark.asyncio
 async def test_build_url():
     crawler = GitHubCrawler(["python", "asyncio"], search_type=SearchType.REPOSITORIES)
     url = await crawler._build_url()
-    assert "python+asyncio" in url
-    assert "type=Repositories" in url
+
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+
+    assert parsed.netloc == "github.com"
+    assert parsed.path == "/search"
+    assert query["q"][0] == "python asyncio"
+    assert query["type"][0] == "Repositories"
 
 
 def test_parse_results():
@@ -25,14 +34,14 @@ def test_parse_results():
     soup = BeautifulSoup(html, "html.parser")
     results = GitHubCrawler._parse_results(soup)
     assert results == [
-        {"url": "https://github.com/owner1/repo1"},
-        {"url": "https://github.com/owner2/repo2"},
+        {"url": GitHubCrawler._make_full_url("/owner1/repo1")},
+        {"url": GitHubCrawler._make_full_url("/owner2/repo2")},
     ]
 
 
 def test_extract_owner():
-    assert GitHubCrawler._extract_owner("https://github.com/owner1/repo1") == "owner1"
-    assert GitHubCrawler._extract_owner("https://github.com/justowner") == ""
+    assert GitHubCrawler._extract_owner(GitHubCrawler._make_full_url("/owner1/repo1")) == "owner1"
+    assert GitHubCrawler._extract_owner(GitHubCrawler._make_full_url("/justowner")) == ""
 
 
 def test_parse_languages_basic():
@@ -77,6 +86,7 @@ async def test_fetch_html_success_and_failure(monkeypatch):
     crawler = GitHubCrawler(["test"])
 
     class DummyResponse:
+        status = 200
         async def __aenter__(self): return self
         async def __aexit__(self, *args): return False
         async def text(self): return "<html>ok</html>"
@@ -97,7 +107,6 @@ async def test_fetch_html_success_and_failure(monkeypatch):
         monkeypatch.setattr(session, "get", bad_get)
         html = await crawler._fetch_html(session, "http://fake")
         assert html is None
-
 
 
 @pytest.mark.asyncio
@@ -128,7 +137,7 @@ async def test_fetch_results_with_repos(monkeypatch):
     monkeypatch.setattr(crawler, "_fetch_html", mock_fetch_html)
 
     results = await crawler.fetch_results()
-    assert results == [{"url": "https://github.com/owner/repo"}]
+    assert results == [{"url": GitHubCrawler._make_full_url("/owner/repo")}]
 
 
 @pytest.mark.asyncio
@@ -164,7 +173,7 @@ async def test_enrich_repo_success(monkeypatch):
 
     monkeypatch.setattr(crawler, "_extract_languages", mock_extract_languages)
 
-    item = {"url": "https://github.com/owner/repo"}
+    item = {"url": GitHubCrawler._make_full_url("/owner/repo")}
     async with aiohttp.ClientSession() as session:
         enriched = await crawler._enrich_repo(session, item, None)
 
@@ -182,7 +191,7 @@ async def test_enrich_repo_handles_exception(monkeypatch):
 
     monkeypatch.setattr(crawler, "_extract_languages", bad_extract_languages)
 
-    item = {"url": "https://github.com/owner/repo"}
+    item = {"url": GitHubCrawler._make_full_url("/owner/repo")}
     async with aiohttp.ClientSession() as session:
         enriched = await crawler._enrich_repo(session, item, None)
 

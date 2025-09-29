@@ -1,24 +1,20 @@
 import asyncio
 import random
 from typing import List, Dict, Optional, Any
-from enum import Enum
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode, urljoin
 
 import aiohttp
 from aiohttp.client_exceptions import ClientError, ClientResponseError
 from bs4 import BeautifulSoup
 
 from .base import BaseCrawler
-from config import GITHUB_BASE_URL, REQUEST_TIMEOUT, logger
-
-
-class SearchType(str, Enum):
-    REPOSITORIES = "Repositories"
-    ISSUES = "Issues"
-    WIKIS = "Wikis"
+from config import REQUEST_TIMEOUT, logger
+from .search_types import SearchType
 
 
 class GitHubCrawler(BaseCrawler):
+    BASE_URL = "https://github.com/"
+
     def __init__(
         self,
         keywords: List[str],
@@ -29,23 +25,31 @@ class GitHubCrawler(BaseCrawler):
         self.proxies = proxies or []
         self.search_type = search_type
 
+    @classmethod
+    def _make_full_url(cls, path: str) -> str:
+        """Join relative GitHub paths with BASE_URL"""
+        return urljoin(cls.BASE_URL, path)
+
+    async def _build_url(self) -> str:
+        query = {
+            "q": " ".join(self.keywords),
+            "type": self.search_type.value
+        }
+        return urljoin(self.BASE_URL, "search?" + urlencode(query))
+
     @staticmethod
     def _parse_results(soup: BeautifulSoup) -> List[Dict[str, str]]:
         results = []
         for a in soup.select(".search-title a[href^='/']"):
             href = a.get("href", "").strip()
-            results.append({"url": f"https://github.com{href}"})
+            results.append({"url": GitHubCrawler._make_full_url(href)})
         return results
 
     async def _get_proxy(self) -> Optional[str]:
         return random.choice(self.proxies) if self.proxies else None
 
-    async def _build_url(self) -> str:
-        q = "+".join(self.keywords)
-        return f"{GITHUB_BASE_URL}?q={q}&type={self.search_type.value}"
-
     async def _fetch_html(
-            self, session: aiohttp.ClientSession, url: str, proxy: Optional[str] = None
+        self, session: aiohttp.ClientSession, url: str, proxy: Optional[str] = None
     ) -> Optional[str]:
         try:
             headers = {
@@ -60,7 +64,7 @@ class GitHubCrawler(BaseCrawler):
                 ),
             }
 
-            kwargs: Dict[str, Any] = {
+            kwargs = {
                 "timeout": REQUEST_TIMEOUT,
                 "headers": headers,
             }

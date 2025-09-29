@@ -47,7 +47,6 @@ pip install -r requirements.txt
 Copy `.env-template` to `.env` and configure:
 
 ```env
-GITHUB_BASE_URL=https://github.com/search
 REQUEST_TIMEOUT=10
 ```
 
@@ -63,7 +62,7 @@ Prepare an input JSON file (`input_data.json`):
 ```
 
 * **keywords** — list of keywords to search.
-* **proxies** — list of proxies (both `ip:port` and `http://user:pass@ip:port` are supported).
+* **proxies** — list of proxies (both `ip:port` and `user:pass@ip:port` are supported).
 * **type** — search type: `Repositories`, `Issues`, or `Wikis`.
 * **extra** — if `true`, fetch repository owner and language stats.
 
