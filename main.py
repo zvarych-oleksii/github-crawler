@@ -1,7 +1,8 @@
 import json
 import asyncio
 from pathlib import Path
-from crawler.github import GitHubCrawler, SearchType
+from crawler.github import GitHubCrawler
+from crawler.enums.search_types import SearchType
 
 
 def main():
